@@ -17,8 +17,15 @@ class _RepeatsPageState extends State<RepeatsPage> {
   List<Map<String, dynamic>> _routineTasks = [];
   bool _isLoading = true;
 
-  final Color primaryDark = const Color(0xFF001B3D);
-  final Color cardColor = const Color(0xFF1D3D5E);
+  // --- NEW THEME COLORS ---
+  final Color bgColor = const Color(0xFF161719);
+  final Color cardBgColor = const Color(0xFF1C1D21);
+  final Color surfaceColor = const Color(0xFF222A26);
+  final Color elementGray = const Color(0xFF31353A);
+  final Color textPrimary = const Color(0xFFFFFFFF);
+  final Color textSecondary = const Color(0xFF9BA3AA);
+  final Color accentMint = const Color(0xFFC2E5CD);
+  final Color accentPeach = const Color(0xFFFFB4A9);
 
   @override
   void initState() {
@@ -56,16 +63,96 @@ class _RepeatsPageState extends State<RepeatsPage> {
 
     if (!await myFolder.exists()) {
       await myFolder.create(recursive: true);
-      debugPrint('Created new folder at : $folderPath');
     }
     final file = File('$folderPath/frequent_schedule.json');
     _routineTasks.sort((a, b) => a['start'].compareTo(b['start']));
     await file.writeAsString(jsonEncode(_routineTasks));
   }
 
+  // --- DEEP SYNC: DELETION ---
+  Future<void> _deleteTaskFromAllDays(String taskNameToDelete) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final Directory flowDir = Directory('${directory.path}/flow');
+
+      if (!await flowDir.exists()) return;
+
+      final List<FileSystemEntity> files = flowDir.listSync();
+
+      for (var file in files) {
+        String fileName = file.uri.pathSegments.last;
+        if (file is File && fileName.startsWith('daily_') && fileName.endsWith('.json')) {
+          List<dynamic> dayTasks = jsonDecode(await file.readAsString());
+          
+          int originalLength = dayTasks.length;
+          // Remove the task if the name matches
+          dayTasks.removeWhere((item) => item['task'] == taskNameToDelete);
+
+          // Only rewrite the file if we actually deleted something from it
+          if (dayTasks.length < originalLength) {
+            await file.writeAsString(jsonEncode(dayTasks));
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error deleting task deeply: $e");
+    }
+  }
+
+  // --- DEEP SYNC: UPDATING ---
+  Future<void> _updateTaskInAllDays(String oldName, String newName, String newStart, String newEnd) async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final Directory flowDir = Directory('${directory.path}/flow');
+
+      if (!await flowDir.exists()) return;
+
+      final List<FileSystemEntity> files = flowDir.listSync();
+
+      for (var file in files) {
+        String fileName = file.uri.pathSegments.last;
+        if (file is File && fileName.startsWith('daily_') && fileName.endsWith('.json')) {
+          List<dynamic> dayTasks = jsonDecode(await file.readAsString());
+          bool fileModified = false;
+
+          for (var item in dayTasks) {
+            if (item['task'] == oldName) {
+              item['task'] = newName;
+              item['start'] = newStart;
+              item['end'] = newEnd;
+              fileModified = true;
+            }
+          }
+
+          if (fileModified) {
+            // Re-sort the day's tasks chronologically just in case the time was changed
+            dayTasks.sort((a, b) => a['start'].compareTo(b['start']));
+            await file.writeAsString(jsonEncode(dayTasks));
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error updating task deeply: $e");
+    }
+  }
+
+  // --- SMOOTH PAGE TRANSITION HELPER ---
+  Route _fadeRoute(Widget page) {
+    return PageRouteBuilder(
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(opacity: animation, child: child);
+      },
+      transitionDuration: const Duration(milliseconds: 200),
+    );
+  }
+
   // --- UNIFIED ADD & EDIT DIALOG ---
   void _showTaskDialog({int? index}) {
     final bool isEdit = index != null;
+    
+    // Keep track of the old name in case they change it during an edit
+    final String oldTaskName = isEdit ? _routineTasks[index]['task'] : "";
 
     final nameController = TextEditingController(
       text: isEdit ? _routineTasks[index]['task'] : "",
@@ -77,9 +164,10 @@ class _RepeatsPageState extends State<RepeatsPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF2C4364),
+          backgroundColor: cardBgColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(30),
+            side: BorderSide(color: elementGray, width: 1),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -87,29 +175,31 @@ class _RepeatsPageState extends State<RepeatsPage> {
             children: [
               Center(
                 child: Text(
-                  isEdit ? "Edit Task" : "Add Task",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
+                  isEdit ? "Edit Routine Task" : "New Routine Task",
+                  style: TextStyle(
+                    color: textPrimary,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              const Text(
+              const SizedBox(height: 25),
+              Text(
                 "Task Name",
-                style: TextStyle(color: Colors.white, fontSize: 16),
+                style: TextStyle(color: textSecondary, fontSize: 14, fontWeight: FontWeight.w500),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               TextField(
                 controller: nameController,
                 autofocus: true,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: textPrimary, fontSize: 16),
+                cursorColor: accentMint,
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.2),
+                  fillColor: elementGray,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
                   ),
                 ),
@@ -121,67 +211,101 @@ class _RepeatsPageState extends State<RepeatsPage> {
                     final t = await showTimePicker(
                       context: context,
                       initialTime: TimeOfDay.now(),
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: ColorScheme.dark(
+                              primary: accentMint,
+                              onPrimary: bgColor,
+                              surface: cardBgColor,
+                              onSurface: textPrimary,
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
                     );
-                    if (t != null)
+                    if (t != null) {
                       setDialogState(
-                        () => startStr =
-                            "${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}",
+                        () => startStr = "${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}",
                       );
+                    }
                   }),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 16),
                   _buildTimePickerColumn("End Time", endStr, () async {
                     final t = await showTimePicker(
                       context: context,
                       initialTime: TimeOfDay.now(),
+                      builder: (context, child) {
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            colorScheme: ColorScheme.dark(
+                              primary: accentMint,
+                              onPrimary: bgColor,
+                              surface: cardBgColor,
+                              onSurface: textPrimary,
+                            ),
+                          ),
+                          child: child!,
+                        );
+                      },
                     );
-                    if (t != null)
+                    if (t != null) {
                       setDialogState(
-                        () => endStr =
-                            "${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}",
+                        () => endStr = "${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}",
                       );
+                    }
                   }),
                 ],
               ),
               const SizedBox(height: 30),
               Center(
                 child: SizedBox(
-                  width: 150,
+                  width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00897B),
+                      backgroundColor: accentMint,
+                      foregroundColor: bgColor,
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    onPressed: () {
+                    onPressed: () async {
                       if (nameController.text.isNotEmpty) {
+                        String newName = nameController.text.trim();
+                        
                         setState(() {
                           if (isEdit) {
-                            // Update existing
                             _routineTasks[index] = {
-                              "task": nameController.text.trim(),
+                              "task": newName,
                               "start": startStr,
                               "end": endStr,
                             };
                           } else {
-                            // Add new
                             _routineTasks.add({
-                              "task": nameController.text.trim(),
+                              "task": newName,
                               "start": startStr,
                               "end": endStr,
                             });
                           }
                         });
-                        _saveRoutine();
-                        Navigator.pop(context);
+                        
+                        await _saveRoutine();
+                        
+                        // If it's an edit, trigger the Deep Sync to update all files!
+                        if (isEdit) {
+                          _updateTaskInAllDays(oldTaskName, newName, startStr, endStr);
+                        }
+                        
+                        if (mounted) Navigator.pop(context);
                       }
                     },
-                    child: const Text(
-                      "Done",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
+                    child: Text(
+                      isEdit ? "Save Changes" : "Add to Routine",
+                      style: const TextStyle(
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -198,7 +322,7 @@ class _RepeatsPageState extends State<RepeatsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: primaryDark,
+      backgroundColor: bgColor,
       body: Stack(
         children: [
           SafeArea(
@@ -207,35 +331,23 @@ class _RepeatsPageState extends State<RepeatsPage> {
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  // TOP BACK OPTION
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white,
-                          size: 24,
-                        ),
+                        icon: Icon(Icons.arrow_back_ios_new_rounded, color: textPrimary, size: 24),
                         onPressed: () {
                           Navigator.pushAndRemoveUntil(
                             context,
-                            MaterialPageRoute(
-                              builder: (context) => const HomePage(),
-                            ),
-                            (Route<dynamic> route) =>
-                                false, // This destroys all other routes in the background
+                            _fadeRoute(const HomePage()),
+                            (Route<dynamic> route) => false, 
                           );
                         },
                       ),
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          "Frequent Schedule",
+                          "Blueprint",
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 26,
-                            fontWeight: FontWeight.w900,
-                          ),
+                          style: TextStyle(color: textPrimary, fontSize: 26, fontWeight: FontWeight.w900),
                         ),
                       ),
                       const SizedBox(width: 48),
@@ -244,23 +356,22 @@ class _RepeatsPageState extends State<RepeatsPage> {
                   const SizedBox(height: 30),
                   Expanded(
                     child: _isLoading
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                            ),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.only(bottom: 120),
-                            itemCount: _routineTasks.length,
-                            itemBuilder: (context, index) =>
-                                _buildScheduleCard(_routineTasks[index], index),
-                          ),
+                        ? Center(child: CircularProgressIndicator(color: accentMint))
+                        : _routineTasks.isEmpty
+                            ? Center(
+                                child: Text("No routine set yet.", style: TextStyle(color: textSecondary, fontSize: 16)),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.only(bottom: 120),
+                                itemCount: _routineTasks.length,
+                                itemBuilder: (context, index) => _buildScheduleCard(_routineTasks[index], index),
+                              ),
                   ),
                 ],
               ),
             ),
           ),
-          // FIXED NAVBAR
+          
           Positioned(
             bottom: 25,
             left: 20,
@@ -268,47 +379,31 @@ class _RepeatsPageState extends State<RepeatsPage> {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
               decoration: BoxDecoration(
-                color: Colors.black,
+                color: const Color(0xFF000000), 
                 borderRadius: BorderRadius.circular(50),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black45, blurRadius: 10),
-                ],
+                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 20, offset: Offset(0, 8))],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _navIcon(Icons.repeat, () {}, isSelected: true),
-                  _midIcon(
-                    () => Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TasksPage(),
-                      ),
-                    ),
-                  ),
-                  _navIcon(
-                    Icons.insights,
-                    () => Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ProgressPage(),
-                      ),
-                    ),
-                  ),
+                  _navIcon(Icons.repeat, () {}, isSelected: true), 
+                  _addIcon(() => Navigator.pushReplacement(context, _fadeRoute(const TasksPage()))),
+                  _navIcon(Icons.insights, () => Navigator.pushReplacement(context, _fadeRoute(const ProgressPage()))),
                 ],
               ),
             ),
           ),
         ],
       ),
+      
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 140.0),
+        padding: const EdgeInsets.only(bottom: 120.0),
         child: FloatingActionButton(
-          backgroundColor: cardColor,
-          elevation: 10,
-          onPressed: () =>
-              _showTaskDialog(), // Calls dialog as "Add" (index is null)
-          child: const Icon(Icons.add, color: Colors.white, size: 30),
+          backgroundColor: elementGray,
+          elevation: 4,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          onPressed: () => _showTaskDialog(), 
+          child: Icon(Icons.add, color: accentMint, size: 28), 
         ),
       ),
     );
@@ -316,25 +411,18 @@ class _RepeatsPageState extends State<RepeatsPage> {
 
   Widget _buildScheduleCard(Map<String, dynamic> task, int index) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: cardBgColor,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: const BoxDecoration(
-              color: Color(0xFF0F2641),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.list_alt_rounded,
-              color: Colors.white,
-              size: 28,
-            ),
+            decoration: BoxDecoration(color: elementGray, shape: BoxShape.circle),
+            child: Icon(Icons.loop_rounded, color: accentMint, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -343,33 +431,33 @@ class _RepeatsPageState extends State<RepeatsPage> {
               children: [
                 Text(
                   task['task'],
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(color: textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(height: 4),
                 Text(
                   "${task['start']} - ${task['end']}",
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  style: TextStyle(color: textSecondary, fontSize: 13, fontWeight: FontWeight.w500),
                 ),
               ],
             ),
           ),
-          // Actions Row (Edit & Delete)
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
-                icon: const Icon(Icons.edit_outlined, color: Colors.white54),
-                onPressed: () =>
-                    _showTaskDialog(index: index), // Calls dialog as "Edit"
+                icon: Icon(Icons.edit_outlined, color: textSecondary),
+                onPressed: () => _showTaskDialog(index: index), 
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.white54),
+                icon: Icon(Icons.delete_outline_rounded, color: accentPeach), 
                 onPressed: () {
+                  String taskToDelete = _routineTasks[index]['task'];
+                  
                   setState(() => _routineTasks.removeAt(index));
                   _saveRoutine();
+                  
+                  // Trigger Deep Sync Delete!
+                  _deleteTaskFromAllDays(taskToDelete);
                 },
               ),
             ],
@@ -379,12 +467,7 @@ class _RepeatsPageState extends State<RepeatsPage> {
     );
   }
 
-  // Navbar icons fixed to show perfect circular splash
-  Widget _navIcon(
-    IconData icon,
-    VoidCallback onTap, {
-    bool isSelected = false,
-  }) {
+  Widget _navIcon(IconData icon, VoidCallback onTap, {bool isSelected = false}) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -392,60 +475,47 @@ class _RepeatsPageState extends State<RepeatsPage> {
         borderRadius: BorderRadius.circular(25),
         child: CircleAvatar(
           radius: 25,
-          backgroundColor: isSelected
-              ? Colors.white24
-              : const Color(0xFF1D3D5E),
-          child: Icon(icon, color: Colors.white),
+          backgroundColor: elementGray,
+          child: Icon(icon, color: isSelected ? accentMint : textSecondary),
         ),
       ),
     );
   }
 
-  Widget _midIcon(VoidCallback onTap) {
+  Widget _addIcon(VoidCallback onTap) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(35),
-        child: const CircleAvatar(
+        child: CircleAvatar(
           radius: 35,
-          backgroundColor: Color(0xFF1D3D5E),
-          child: Icon(Icons.add, color: Colors.white, size: 40),
+          backgroundColor: accentMint,
+          child: Icon(Icons.add, color: bgColor, size: 40),
         ),
       ),
     );
   }
 
-  Widget _buildTimePickerColumn(
-    String label,
-    String timeVal,
-    VoidCallback onTap,
-  ) {
+  Widget _buildTimePickerColumn(String label, String timeVal, VoidCallback onTap) {
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
+            style: TextStyle(color: textSecondary, fontSize: 13, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 8),
           GestureDetector(
             onTap: onTap,
             child: Container(
-              height: 45,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(15),
-              ),
+              height: 48,
+              decoration: BoxDecoration(color: elementGray, borderRadius: BorderRadius.circular(16)),
               alignment: Alignment.center,
               child: Text(
                 timeVal,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(color: textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),

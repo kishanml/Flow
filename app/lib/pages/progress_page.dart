@@ -19,12 +19,16 @@ class _ProgressPageState extends State<ProgressPage> {
   double _globalConsistency = 0.0;
   Map<String, Map<String, dynamic>> _taskStats = {};
   
-  // 1. Added State for Monthly Tracking
   DateTime _selectedMonth = DateTime.now();
 
-  final Color primaryDark = const Color(0xFF001B3D);
-  final Color cardColor = const Color(0xFF1D3D5E);
-  final Color tealAccent = const Color(0xFF00897B);
+  // --- NEW THEME COLORS ---
+  final Color bgColor = const Color(0xFF161719);
+  final Color cardBgColor = const Color(0xFF1C1D21);
+  final Color surfaceColor = const Color(0xFF222A26);
+  final Color elementGray = const Color(0xFF31353A);
+  final Color textPrimary = const Color(0xFFFFFFFF);
+  final Color textSecondary = const Color(0xFF9BA3AA);
+  final Color accentMint = const Color(0xFFC2E5CD);
 
   @override
   void initState() {
@@ -66,13 +70,11 @@ class _ProgressPageState extends State<ProgressPage> {
         String fileName = file.uri.pathSegments.last;
         
         if (file is File && fileName.startsWith('daily_') && fileName.endsWith('.json')) {
-          // Extract date from filename
           String dateString = fileName.replaceAll('daily_', '').replaceAll('.json', '');
           
           try {
             DateTime fileDate = DateFormat('yyyy-MM-dd').parse(dateString);
             
-            // 2. FILTER: Only process files that match the selected month and year
             if (fileDate.year == _selectedMonth.year && fileDate.month == _selectedMonth.month) {
               List<dynamic> dayTasks = jsonDecode(await file.readAsString());
               
@@ -115,7 +117,6 @@ class _ProgressPageState extends State<ProgressPage> {
     }
   }
 
-  // Helper to change months
   void _changeMonth(int offset) {
     setState(() {
       _isLoading = true;
@@ -124,10 +125,21 @@ class _ProgressPageState extends State<ProgressPage> {
     _calculateStats();
   }
 
+  // --- SMOOTH PAGE TRANSITION HELPER ---
+  Route _fadeRoute(Widget page) {
+    return PageRouteBuilder(
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        return FadeTransition(opacity: animation, child: child);
+      },
+      transitionDuration: const Duration(milliseconds: 200),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: primaryDark,
+      backgroundColor: bgColor,
       body: Stack(
         children: [
           // 1. MAIN CONTENT
@@ -142,25 +154,25 @@ class _ProgressPageState extends State<ProgressPage> {
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white,
+                          color: textPrimary,
                           size: 24,
                         ),
                         onPressed: () {
                           Navigator.pushAndRemoveUntil(
                             context,
-                            MaterialPageRoute(builder: (context) => const HomePage()),
+                            _fadeRoute(const HomePage()),
                             (Route<dynamic> route) => false,
                           );
                         },
                       ),
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           "Progress",
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Colors.white,
+                            color: textPrimary,
                             fontSize: 26,
                             fontWeight: FontWeight.w900,
                           ),
@@ -172,25 +184,24 @@ class _ProgressPageState extends State<ProgressPage> {
 
                   const SizedBox(height: 20),
 
-                  // 3. MONTH SELECTOR UI
+                  // MONTH SELECTOR UI
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.chevron_left_rounded, color: Colors.white54, size: 30),
+                        icon: Icon(Icons.chevron_left_rounded, color: textSecondary, size: 30),
                         onPressed: () => _changeMonth(-1),
                       ),
                       Text(
                         DateFormat('MMMM yyyy').format(_selectedMonth),
-                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                        style: TextStyle(color: textPrimary, fontSize: 20, fontWeight: FontWeight.bold),
                       ),
                       IconButton(
-                        // Hide right arrow if it's the current month (can't see future progress)
                         icon: Icon(
                           Icons.chevron_right_rounded, 
                           color: _selectedMonth.month == DateTime.now().month && _selectedMonth.year == DateTime.now().year 
                               ? Colors.transparent 
-                              : Colors.white54, 
+                              : textSecondary, 
                           size: 30
                         ),
                         onPressed: () {
@@ -204,20 +215,20 @@ class _ProgressPageState extends State<ProgressPage> {
 
                   const SizedBox(height: 15),
 
-                  // CONSISTENCY HIGHLIGHT CARD
+                  // CONSISTENCY HIGHLIGHT CARD (Using the Slate Green surface color)
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 30),
                     decoration: BoxDecoration(
-                      color: cardColor,
+                      color: surfaceColor,
                       borderRadius: BorderRadius.circular(24),
                     ),
                     child: Column(
                       children: [
-                        const Text(
+                        Text(
                           "Monthly Consistency",
                           style: TextStyle(
-                            color: Colors.white70,
+                            color: textSecondary,
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
                             letterSpacing: 1.2,
@@ -231,16 +242,16 @@ class _ProgressPageState extends State<ProgressPage> {
                           children: [
                             Text(
                               "${_globalConsistency.toInt()}",
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: textPrimary,
                                 fontSize: 64,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const Text(
+                            Text(
                               " %",
                               style: TextStyle(
-                                color: Colors.white54,
+                                color: textSecondary,
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -252,11 +263,11 @@ class _ProgressPageState extends State<ProgressPage> {
                   ),
 
                   const SizedBox(height: 30),
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       "Routine Breakdown",
-                      style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: textPrimary, fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                   ),
                   const SizedBox(height: 15),
@@ -264,12 +275,12 @@ class _ProgressPageState extends State<ProgressPage> {
                   // TASK SPECIFIC STATS
                   Expanded(
                     child: _isLoading
-                        ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                        ? Center(child: CircularProgressIndicator(color: accentMint))
                         : _taskStats.isEmpty
                             ? Center(
                                 child: Text(
                                   "No data for ${DateFormat('MMMM').format(_selectedMonth)}.", 
-                                  style: const TextStyle(color: Colors.white38, fontSize: 16)
+                                  style: TextStyle(color: textSecondary, fontSize: 16)
                                 )
                               )
                             : ListView.builder(
@@ -292,7 +303,7 @@ class _ProgressPageState extends State<ProgressPage> {
             ),
           ),
 
-          // 2. FIXED NAVBAR
+          // 2. FIXED NAVBAR (Smooth Fade Routing)
           Positioned(
             bottom: 25,
             left: 20,
@@ -300,16 +311,16 @@ class _ProgressPageState extends State<ProgressPage> {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
               decoration: BoxDecoration(
-                color: Colors.black,
+                color: const Color(0xFF000000), // Pure black for floating contrast
                 borderRadius: BorderRadius.circular(50),
-                boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 10)],
+                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 20, offset: Offset(0, 8))],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _navIcon(Icons.repeat, () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const RepeatsPage()))),
-                  _addIcon(() => Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TasksPage()))),
-                  _navIcon(Icons.insights, () {}, isSelected: true),
+                  _navIcon(Icons.repeat, () => Navigator.pushReplacement(context, _fadeRoute(const RepeatsPage()))),
+                  _addIcon(() => Navigator.pushReplacement(context, _fadeRoute(const TasksPage()))),
+                  _navIcon(Icons.insights, () {}, isSelected: true), // Active tab
                 ],
               ),
             ),
@@ -327,16 +338,16 @@ class _ProgressPageState extends State<ProgressPage> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: cardBgColor,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         children: [
           Row(
             children: [
-              const CircleAvatar(
-                backgroundColor: Color(0xFF0F2641),
-                child: Icon(Icons.show_chart_rounded, color: Colors.white, size: 24),
+              CircleAvatar(
+                backgroundColor: elementGray,
+                child: Icon(Icons.show_chart_rounded, color: accentMint, size: 24),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -345,8 +356,8 @@ class _ProgressPageState extends State<ProgressPage> {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -354,15 +365,15 @@ class _ProgressPageState extends State<ProgressPage> {
                     const SizedBox(height: 4),
                     Text(
                       time,
-                      style: const TextStyle(color: Colors.white54, fontSize: 13),
+                      style: TextStyle(color: textSecondary, fontSize: 13),
                     ),
                   ],
                 ),
               ),
               Text(
                 "$done / $total",
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: textPrimary,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
@@ -374,8 +385,8 @@ class _ProgressPageState extends State<ProgressPage> {
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
               value: completionRate,
-              backgroundColor: Colors.white10,
-              color: tealAccent,
+              backgroundColor: elementGray,
+              valueColor: AlwaysStoppedAnimation<Color>(accentMint),
               minHeight: 6,
             ),
           ),
@@ -393,8 +404,9 @@ class _ProgressPageState extends State<ProgressPage> {
         borderRadius: BorderRadius.circular(25),
         child: CircleAvatar(
           radius: 25,
-          backgroundColor: isSelected ? Colors.white24 : const Color(0xFF1D3D5E),
-          child: Icon(icon, color: Colors.white),
+          backgroundColor: elementGray,
+          // Active icon gets the Mint color to stand out, inactive gets textSecondary
+          child: Icon(icon, color: isSelected ? accentMint : textSecondary),
         ),
       ),
     );
@@ -406,10 +418,10 @@ class _ProgressPageState extends State<ProgressPage> {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(35),
-        child: const CircleAvatar(
+        child: CircleAvatar(
           radius: 35,
-          backgroundColor: Color(0xFF1D3D5E),
-          child: Icon(Icons.add, color: Colors.white, size: 40),
+          backgroundColor: accentMint,
+          child: Icon(Icons.add, color: bgColor, size: 40),
         ),
       ),
     );

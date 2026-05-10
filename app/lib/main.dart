@@ -3,26 +3,25 @@ import 'package:flutter/services.dart';
 import 'pages/loading_page.dart';
 
 void main() {
-  // Ensure the status bar is transparent and icons are dark for the light theme
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark, // Dark icons for light bg
-    systemNavigationBarColor: Color(0xFFF4F6F9), // Matches app background
+    statusBarIconBrightness: Brightness.dark, 
+    systemNavigationBarColor: Color(0xFFF4F6F9), 
     systemNavigationBarIconBrightness: Brightness.dark,
   ));
 
-  runApp(const Yield100App());
+  runApp(const YieldApp());
 }
 
-class Yield100App extends StatelessWidget {
-  const Yield100App({Key? key}) : super(key: key);
+class YieldApp extends StatelessWidget {
+  const YieldApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Yield100 Flow',
+      title: 'Flow',
       
       theme: ThemeData(
         useMaterial3: true,
